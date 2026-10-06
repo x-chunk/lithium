@@ -191,3 +191,56 @@ func TestDoDecodeError(t *testing.T) {
 		t.Fatalf("want decode error, got %v", res)
 	}
 }
+
+type testSendMessage struct {
+	ChatID int64  `json:"chat_id"`
+	Text   string `json:"text"`
+}
+
+func (testSendMessage) Method() string { return "sendMessage" }
+
+type testGetMe struct{}
+
+func (*testGetMe) Method() string { return "getMe" }
+
+func TestSendUsesRequestAsPayload(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/botTOKEN/sendMessage" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != `{"chat_id":1,"text":"hi"}` {
+			t.Errorf("body = %s", body)
+		}
+		io.WriteString(w, `{"ok":true,"result":{"message_id":7,"text":"hi"}}`)
+	})
+
+	msg, err := c.Send[testMessage](context.Background(), testSendMessage{ChatID: 1, Text: "hi"}).Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.MessageID != 7 {
+		t.Errorf("msg = %+v", msg)
+	}
+}
+
+func TestSendPointerReceiverEmptyStruct(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/botTOKEN/getMe" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != `{}` {
+			t.Errorf("body = %s", body)
+		}
+		io.WriteString(w, `{"ok":true,"result":{"id":1}}`)
+	})
+
+	me, err := c.Send[map[string]int](context.Background(), &testGetMe{}).Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if me["id"] != 1 {
+		t.Errorf("me = %v", me)
+	}
+}
