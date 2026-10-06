@@ -94,3 +94,39 @@ func TestTransportErrorHidesToken(t *testing.T) {
 		t.Errorf("error leaks token: %v", err)
 	}
 }
+
+func TestCallValidation(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent")
+	})
+	ctx := context.Background()
+
+	tests := map[string]*Request{
+		"nil request":  nil,
+		"empty method": NewRequest("", struct{}{}),
+		"nil payload":  NewRequest("getMe", nil),
+	}
+	for name, req := range tests {
+		if _, err := c.Call(ctx, req); err == nil {
+			t.Errorf("%s: want error", name)
+		}
+	}
+}
+
+func TestCallRawValidation(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent")
+	})
+	ctx := context.Background()
+
+	tests := map[string]*RawRequest{
+		"nil request":        nil,
+		"empty method":       NewRawRequest("", "text/plain", nil),
+		"empty content type": NewRawRequest("getMe", "", nil),
+	}
+	for name, req := range tests {
+		if _, err := c.CallRaw(ctx, req); err == nil {
+			t.Errorf("%s: want error", name)
+		}
+	}
+}
