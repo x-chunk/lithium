@@ -1,6 +1,8 @@
 package lithium
 
+// request holds the fields shared by [Request] and [RawRequest].
 type request struct {
+	// method is the Bot API method name, e.g. "sendMessage".
 	method string
 }
 
