@@ -72,7 +72,7 @@ func ExampleClient_Call() {
 	defer srv.Close()
 	client := lithium.New("TOKEN", lithium.WithBaseURL(srv.URL))
 
-	resp, err := client.Call(context.Background(), lithium.NewRequest("getMe", struct{}{}))
+	resp, err := client.Call(context.Background(), lithium.NewRequest("getMe", struct{}{})).Value()
 	if err != nil {
 		panic(err)
 	}
