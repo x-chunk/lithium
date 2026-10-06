@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/x-chunk/lithium/internal"
+	"go.xchunk.org/anvil/v2/result"
 )
 
 type Client struct {
@@ -71,4 +72,14 @@ func unwrap(env *internal.Envelope, err error) (*Response, error) {
 		return nil, apiErr
 	}
 	return &Response{payload: env.Result}, nil
+}
+
+func (c *Client) Do[Resp any](ctx context.Context, method string, payload any) result.Result[Resp] {
+	return result.Of(c.Call(ctx, NewRequest(method, payload))).AndThen(decode[Resp])
+}
+
+func decode[T any](r *Response) result.Result[T] {
+	var v T
+	err := r.Decode(&v)
+	return result.Of(v, err)
 }
