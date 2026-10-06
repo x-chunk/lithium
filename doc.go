@@ -7,7 +7,8 @@
 // There are three levels of API, each built on top of the previous one:
 //
 //   - [Client.CallRaw] sends a pre-encoded body with an arbitrary content type,
-//     e.g. multipart/form-data for file uploads.
+//     e.g. multipart/form-data for file uploads, and returns the raw result as
+//     a [result.Result] of [Response].
 //   - [Client.Call] encodes the payload as JSON and returns the raw result as [Response].
 //   - [Client.Do] and [Client.Send] decode the result into a user type and return
 //     it as a [result.Result].

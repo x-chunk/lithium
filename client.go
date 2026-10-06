@@ -64,22 +64,23 @@ func (c *Client) Call(ctx context.Context, req *Request) (*Response, error) {
 	return unwrap(env, err).Value()
 }
 
-// CallRaw sends a pre-encoded request body as is and returns the raw result.
-// It is the way to send bodies other than JSON, e.g. multipart/form-data with files.
+// CallRaw sends a pre-encoded request body as is and returns the raw result
+// as a [result.Result]. It is the way to send bodies other than JSON,
+// e.g. multipart/form-data with files.
 //
 // The request must be non-nil and have a non-empty method and content type.
-// If the Bot API responds with ok=false, the error is an [*Error].
-func (c *Client) CallRaw(ctx context.Context, req *RawRequest) (*Response, error) {
+// If the Bot API responds with ok=false, the result holds an [*Error].
+func (c *Client) CallRaw(ctx context.Context, req *RawRequest) result.Result[*Response] {
 	if req == nil {
-		return nil, errors.New("request must not be empty")
+		return result.Err[*Response](errors.New("request must not be empty"))
 	} else if req.method == "" {
-		return nil, errors.New("method must not be empty")
+		return result.Err[*Response](errors.New("method must not be empty"))
 	} else if req.contentType == "" {
-		return nil, errors.New("content type must not be empty")
+		return result.Err[*Response](errors.New("content type must not be empty"))
 	}
 
 	env, err := c.transport.Do(ctx, req.method, req.contentType, req.payload)
-	return unwrap(env, err).Value()
+	return unwrap(env, err)
 }
 
 // unwrap turns a transport result into a [result.Result] of [Response]: a transport

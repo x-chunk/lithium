@@ -75,7 +75,7 @@ func TestCallRaw(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":true}`)
 	})
 
-	resp, err := c.CallRaw(context.Background(), NewRawRequest("x", "text/plain", []byte("raw")))
+	resp, err := c.CallRaw(context.Background(), NewRawRequest("x", "text/plain", []byte("raw"))).Value()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestCallRawValidation(t *testing.T) {
 		"empty content type": NewRawRequest("getMe", "", nil),
 	}
 	for name, req := range tests {
-		if _, err := c.CallRaw(ctx, req); err == nil {
+		if res := c.CallRaw(ctx, req); res.IsOk() {
 			t.Errorf("%s: want error", name)
 		}
 	}
