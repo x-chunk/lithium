@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/x-chunk/lithium"
+	"go.xchunk.org/lithium"
 )
 
 type SendMessage struct {

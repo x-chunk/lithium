@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/x-chunk/lithium/internal"
 	"go.xchunk.org/anvil/v2/result"
+	"go.xchunk.org/lithium/internal"
 )
 
 // Client sends calls to the Telegram Bot API on behalf of a single bot.

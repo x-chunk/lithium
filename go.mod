@@ -1,4 +1,4 @@
-module github.com/x-chunk/lithium
+module go.xchunk.org/lithium
 
 go 1.27
 
