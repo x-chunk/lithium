@@ -15,6 +15,10 @@ type Client struct {
 
 type Option func(*Client)
 
+type Method interface {
+	Method() string
+}
+
 // WithHTTPClient sets the HTTP client used for requests. http.DefaultClient is used by default.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(c *Client) { c.transport.HTTPClient = hc }
