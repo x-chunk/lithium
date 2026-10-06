@@ -82,6 +82,10 @@ func (c *Client) Do[Resp any](ctx context.Context, method string, payload any) r
 	return result.Of(c.Call(ctx, NewRequest(method, payload))).AndThen(decode[Resp])
 }
 
+func (c *Client) Send[Resp any](ctx context.Context, req Method) result.Result[Resp] {
+	return result.Of(c.Call(ctx, NewRequest(req.Method(), req))).AndThen(decode[Resp])
+}
+
 func decode[T any](r *Response) result.Result[T] {
 	var v T
 	err := r.Decode(&v)
