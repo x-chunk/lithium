@@ -1,3 +1,5 @@
+// Package internal implements the HTTP transport of the Bot API: it sends
+// method calls and decodes the response envelope, without interpreting it.
 package internal
 
 import (
@@ -12,13 +14,18 @@ import (
 	"strings"
 )
 
+// DefaultBaseURL is the address of the public Bot API server.
 const DefaultBaseURL = "https://api.telegram.org"
 
 // Transport sends Bot API calls over HTTP and unwraps the response envelope.
+// The zero value is not usable: Token must be set.
 type Transport struct {
+	// HTTPClient sends the requests. If nil, http.DefaultClient is used.
 	HTTPClient *http.Client
-	BaseURL    string
-	Token      string
+	// BaseURL is the Bot API server address. If empty, DefaultBaseURL is used.
+	BaseURL string
+	// Token is the bot token. It is part of every request URL.
+	Token string
 }
 
 // Envelope is the common wrapper of every Bot API response.
@@ -30,13 +37,17 @@ type Envelope struct {
 	Parameters  *Parameters     `json:"parameters"`
 }
 
+// Parameters carries extra information about a failed request.
 type Parameters struct {
+	// MigrateToChatID is the new identifier of a group migrated to a supergroup.
 	MigrateToChatID int64 `json:"migrate_to_chat_id"`
-	RetryAfter      int   `json:"retry_after"`
+	// RetryAfter is the number of seconds to wait when flood control is exceeded.
+	RetryAfter int `json:"retry_after"`
 }
 
 // Do posts body to the method endpoint and returns the decoded envelope.
 // A non-ok envelope is returned as is, without an error: interpreting it is up to the caller.
+// Network errors never contain the request URL, so the token does not leak into them.
 func (t *Transport) Do(ctx context.Context, method, contentType string, body []byte) (*Envelope, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url(method), bytes.NewReader(body))
 	if err != nil {
@@ -76,6 +87,7 @@ func (t *Transport) DoJSON(ctx context.Context, method string, payload any) (*En
 	return t.Do(ctx, method, "application/json", body)
 }
 
+// url returns the endpoint of method: {BaseURL}/bot{Token}/{method}.
 func (t *Transport) url(method string) string {
 	base := t.BaseURL
 	if base == "" {
@@ -84,6 +96,7 @@ func (t *Transport) url(method string) string {
 	return strings.TrimRight(base, "/") + "/bot" + t.Token + "/" + method
 }
 
+// client returns the HTTP client to use for requests.
 func (t *Transport) client() *http.Client {
 	if t.HTTPClient != nil {
 		return t.HTTPClient
