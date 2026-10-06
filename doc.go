@@ -9,7 +9,8 @@
 //   - [Client.CallRaw] sends a pre-encoded body with an arbitrary content type,
 //     e.g. multipart/form-data for file uploads, and returns the raw result as
 //     a [result.Result] of [Response].
-//   - [Client.Call] encodes the payload as JSON and returns the raw result as [Response].
+//   - [Client.Call] encodes the payload as JSON and returns the raw result the
+//     same way.
 //   - [Client.Do] and [Client.Send] decode the result into a user type and return
 //     it as a [result.Result].
 //
@@ -24,6 +25,6 @@
 //
 //	msg, err := client.Send[Message](ctx, SendMessage{ChatID: 1, Text: "hi"}).Value()
 //
-// When the Bot API responds with ok=false, the error is an [*Error] and can be
-// retrieved with [errors.As].
+// When the Bot API responds with ok=false, the result holds an [*Error], which can
+// be retrieved with [errors.As] from the error returned by Value or Error.
 package lithium

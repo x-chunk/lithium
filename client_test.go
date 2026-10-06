@@ -32,7 +32,7 @@ func TestCallSuccess(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":{"message_id":42}}`)
 	})
 
-	resp, err := c.Call(context.Background(), NewRequest("sendMessage", map[string]any{"chat_id": 1, "text": "hi"}))
+	resp, err := c.Call(context.Background(), NewRequest("sendMessage", map[string]any{"chat_id": 1, "text": "hi"})).Value()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestCallAPIError(t *testing.T) {
 		io.WriteString(w, `{"ok":false,"error_code":429,"description":"Too Many Requests","parameters":{"retry_after":5}}`)
 	})
 
-	_, err := c.Call(context.Background(), NewRequest("getMe", struct{}{}))
+	err := c.Call(context.Background(), NewRequest("getMe", struct{}{})).Error()
 	var apiErr *Error
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("err = %v, want *Error", err)
@@ -86,7 +86,7 @@ func TestCallRaw(t *testing.T) {
 
 func TestTransportErrorHidesToken(t *testing.T) {
 	c := New("SECRET", WithBaseURL("http://127.0.0.1:1"))
-	_, err := c.Call(context.Background(), NewRequest("getMe", struct{}{}))
+	err := c.Call(context.Background(), NewRequest("getMe", struct{}{})).Error()
 	if err == nil {
 		t.Fatal("want error")
 	}
@@ -107,7 +107,7 @@ func TestCallValidation(t *testing.T) {
 		"nil payload":  NewRequest("getMe", nil),
 	}
 	for name, req := range tests {
-		if _, err := c.Call(ctx, req); err == nil {
+		if res := c.Call(ctx, req); res.IsOk() {
 			t.Errorf("%s: want error", name)
 		}
 	}

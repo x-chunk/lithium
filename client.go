@@ -46,22 +46,23 @@ func New(token string, opts ...Option) *Client {
 	return c
 }
 
-// Call encodes the request payload as JSON, sends it and returns the raw result.
+// Call encodes the request payload as JSON, sends it and returns the raw result
+// as a [result.Result].
 //
 // The request must be non-nil and have a non-empty method and a non-nil payload;
 // use an empty struct for methods without parameters. If the Bot API responds
-// with ok=false, the error is an [*Error].
-func (c *Client) Call(ctx context.Context, req *Request) (*Response, error) {
+// with ok=false, the result holds an [*Error].
+func (c *Client) Call(ctx context.Context, req *Request) result.Result[*Response] {
 	if req == nil {
-		return nil, errors.New("request must not be empty")
+		return result.Err[*Response](errors.New("request must not be empty"))
 	} else if req.method == "" {
-		return nil, errors.New("method must not be empty")
+		return result.Err[*Response](errors.New("method must not be empty"))
 	} else if req.payload == nil {
-		return nil, errors.New("payload must not be empty")
+		return result.Err[*Response](errors.New("payload must not be empty"))
 	}
 
 	env, err := c.transport.DoJSON(ctx, req.method, req.payload)
-	return unwrap(env, err).Value()
+	return unwrap(env, err)
 }
 
 // CallRaw sends a pre-encoded request body as is and returns the raw result
@@ -107,7 +108,7 @@ func unwrap(env *internal.Envelope, err error) result.Result[*Response] {
 // Errors of [Client.Call] are passed through; a result that does not fit Resp
 // is reported as a decoding error.
 func (c *Client) Do[Resp any](ctx context.Context, method string, payload any) result.Result[Resp] {
-	return result.Of(c.Call(ctx, NewRequest(method, payload))).AndThen(decode[Resp])
+	return c.Call(ctx, NewRequest(method, payload)).AndThen(decode[Resp])
 }
 
 // Send is like [Client.Do], but takes the method name from req and uses req
@@ -116,7 +117,7 @@ func (c *Client) Send[Resp any](ctx context.Context, req Method) result.Result[R
 	if req == nil {
 		return result.Err[Resp](errors.New("request must not be empty"))
 	}
-	return result.Of(c.Call(ctx, NewRequest(req.Method(), req))).AndThen(decode[Resp])
+	return c.Call(ctx, NewRequest(req.Method(), req)).AndThen(decode[Resp])
 }
 
 // decode unmarshals the result of r into a new T.
