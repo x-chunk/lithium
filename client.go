@@ -61,7 +61,7 @@ func (c *Client) Call(ctx context.Context, req *Request) (*Response, error) {
 	}
 
 	env, err := c.transport.DoJSON(ctx, req.method, req.payload)
-	return unwrap(env, err)
+	return unwrap(env, err).Value()
 }
 
 // CallRaw sends a pre-encoded request body as is and returns the raw result.
@@ -79,14 +79,14 @@ func (c *Client) CallRaw(ctx context.Context, req *RawRequest) (*Response, error
 	}
 
 	env, err := c.transport.Do(ctx, req.method, req.contentType, req.payload)
-	return unwrap(env, err)
+	return unwrap(env, err).Value()
 }
 
-// unwrap turns a transport result into a [Response], converting a non-ok
-// envelope into an [*Error].
-func unwrap(env *internal.Envelope, err error) (*Response, error) {
+// unwrap turns a transport result into a [result.Result] of [Response]: a transport
+// error is passed through and a non-ok envelope becomes an [*Error].
+func unwrap(env *internal.Envelope, err error) result.Result[*Response] {
 	if err != nil {
-		return nil, err
+		return result.Err[*Response](err)
 	}
 	if !env.Ok {
 		apiErr := &Error{Code: env.ErrorCode, Description: env.Description}
@@ -94,9 +94,9 @@ func unwrap(env *internal.Envelope, err error) (*Response, error) {
 			apiErr.RetryAfter = p.RetryAfter
 			apiErr.MigrateToChatID = p.MigrateToChatID
 		}
-		return nil, apiErr
+		return result.Err[*Response](apiErr)
 	}
-	return &Response{payload: env.Result}, nil
+	return result.Ok(&Response{payload: env.Result})
 }
 
 // Do calls method with payload encoded as JSON and decodes the result into Resp.
