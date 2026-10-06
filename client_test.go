@@ -130,3 +130,64 @@ func TestCallRawValidation(t *testing.T) {
 		}
 	}
 }
+
+type testMessage struct {
+	MessageID int    `json:"message_id"`
+	Text      string `json:"text"`
+}
+
+func TestDoDecodesResult(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/botTOKEN/sendMessage" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		io.WriteString(w, `{"ok":true,"result":{"message_id":7,"text":"hi"}}`)
+	})
+
+	msg, err := c.Do[testMessage](context.Background(), "sendMessage", map[string]any{"text": "hi"}).Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg != (testMessage{MessageID: 7, Text: "hi"}) {
+		t.Errorf("msg = %+v", msg)
+	}
+}
+
+func TestDoScalarResult(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"ok":true,"result":true}`)
+	})
+
+	ok, err := c.Do[bool](context.Background(), "deleteMessage", struct{}{}).Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Error("result = false")
+	}
+}
+
+func TestDoAPIError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"ok":false,"error_code":403,"description":"Forbidden"}`)
+	})
+
+	res := c.Do[testMessage](context.Background(), "sendMessage", struct{}{})
+	if res.IsOk() {
+		t.Fatal("want error")
+	}
+	var apiErr *Error
+	if !errors.As(res.Error(), &apiErr) || apiErr.Code != 403 {
+		t.Errorf("err = %v, want *Error with code 403", res.Error())
+	}
+}
+
+func TestDoDecodeError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"ok":true,"result":"not an object"}`)
+	})
+
+	if res := c.Do[testMessage](context.Background(), "sendMessage", struct{}{}); res.IsOk() {
+		t.Fatalf("want decode error, got %v", res)
+	}
+}
