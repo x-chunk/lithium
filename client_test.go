@@ -244,3 +244,13 @@ func TestSendPointerReceiverEmptyStruct(t *testing.T) {
 		t.Errorf("me = %v", me)
 	}
 }
+
+func TestSendNilRequest(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent")
+	})
+
+	if res := c.Send[testMessage](context.Background(), nil); res.IsOk() {
+		t.Fatalf("want error, got %v", res)
+	}
+}
