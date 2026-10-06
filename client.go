@@ -83,6 +83,9 @@ func (c *Client) Do[Resp any](ctx context.Context, method string, payload any) r
 }
 
 func (c *Client) Send[Resp any](ctx context.Context, req Method) result.Result[Resp] {
+	if req == nil {
+		return result.Err[Resp](errors.New("request must not be empty"))
+	}
 	return result.Of(c.Call(ctx, NewRequest(req.Method(), req))).AndThen(decode[Resp])
 }
 
