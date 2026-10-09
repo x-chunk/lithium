@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/iotest"
 )
@@ -211,5 +212,117 @@ func TestUploadFileReadError(t *testing.T) {
 	)
 	if !errors.Is(res.Error(), errRead) {
 		t.Fatalf("err = %v, want %v", res.Error(), errRead)
+	}
+}
+
+func TestUploadStream(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/botTOKEN/sendPhoto" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		if r.ContentLength != -1 {
+			t.Errorf("content length = %d, want a streamed body", r.ContentLength)
+		}
+		got := readRequestForm(t, r)
+		want := []testPart{
+			{name: "caption", value: "hi"},
+			{name: "chat_id", value: "1"},
+			{name: "disable_notification", value: "false"},
+			{name: "photo", fileName: "cat.jpg", value: "JPEG"},
+		}
+		if len(got) != len(want) {
+			t.Fatalf("parts = %+v, want %+v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("part %d = %+v, want %+v", i, got[i], want[i])
+			}
+		}
+		io.WriteString(w, `{"ok":true,"result":{"message_id":7}}`)
+	})
+
+	msg, err := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1, Caption: "hi"},
+		File{Field: "photo", Name: "cat.jpg", Reader: strings.NewReader("JPEG")},
+	).Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.MessageID != 7 {
+		t.Errorf("msg = %+v", msg)
+	}
+}
+
+func TestUploadStreamInvalidRequest(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent")
+	})
+
+	res := c.UploadStream[testMessage](context.Background(), testSendPhoto{},
+		File{Field: "photo"},
+	)
+	if res.IsOk() {
+		t.Fatalf("want error, got %v", res)
+	}
+}
+
+func TestUploadStreamFileReadError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		io.ReadAll(r.Body)
+		io.WriteString(w, `{"ok":true,"result":{}}`)
+	})
+
+	errRead := errors.New("read failed")
+	res := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+		File{Field: "photo", Reader: iotest.ErrReader(errRead)},
+	)
+	if !errors.Is(res.Error(), errRead) {
+		t.Fatalf("err = %v, want %v", res.Error(), errRead)
+	}
+}
+
+// endlessReader yields data forever and reports reads made after done is set.
+type endlessReader struct {
+	t    *testing.T
+	done atomic.Bool
+}
+
+func (r *endlessReader) Read(p []byte) (int, error) {
+	if r.done.Load() {
+		r.t.Error("file read after UploadStream returned")
+	}
+	clear(p)
+	return len(p), nil
+}
+
+func TestUploadStreamStopsReadingOnEarlyResponse(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		io.WriteString(w, `{"ok":false,"error_code":413,"description":"Request Entity Too Large"}`)
+	})
+
+	file := &endlessReader{t: t}
+	res := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+		File{Field: "photo", Reader: file},
+	)
+	file.done.Store(true)
+	if res.IsOk() {
+		t.Fatalf("want error, got %v", res)
+	}
+}
+
+func TestUploadStreamContextCanceled(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent")
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	file := &endlessReader{t: t}
+	res := c.UploadStream[testMessage](ctx, testSendPhoto{ChatID: 1},
+		File{Field: "photo", Reader: file},
+	)
+	file.done.Store(true)
+	if !errors.Is(res.Error(), context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", res.Error())
 	}
 }

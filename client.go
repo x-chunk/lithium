@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"mime/multipart"
 	"net/http"
 
@@ -144,6 +145,31 @@ func (c *Client) Upload[Resp any](ctx context.Context, req Method, files ...File
 		return result.Err[Resp](err)
 	}
 	return c.CallRaw(ctx, NewRawRequest(f.method, mw.FormDataContentType(), body.Bytes())).AndThen(decode[Resp])
+}
+
+// UploadStream is like [Client.Upload], but streams the body to the Bot API while
+// reading the files instead of building it in memory first. The request is sent
+// with chunked encoding. Files are no longer read once UploadStream returns.
+func (c *Client) UploadStream[Resp any](ctx context.Context, req Method, files ...File) result.Result[Resp] {
+	f, err := newForm(req, files)
+	if err != nil {
+		return result.Err[Resp](err)
+	}
+
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		pw.CloseWithError(f.write(mw))
+	}()
+
+	env, err := c.transport.DoReader(ctx, f.method, mw.FormDataContentType(), pr)
+	// The transport may stop reading early, e.g. on a network error;
+	// unblock the writer and wait for it to stop using the files.
+	pr.Close()
+	<-done
+	return unwrap(env, err).AndThen(decode[Resp])
 }
 
 // decode unmarshals the result of r into a new T.
