@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"go.xchunk.org/lithium"
 )
@@ -65,6 +66,29 @@ func ExampleClient_Do() {
 	}
 	fmt.Println(ok)
 	// Output: true
+}
+
+type SendDocument struct {
+	ChatID  int64  `json:"chat_id"`
+	Caption string `json:"caption,omitempty"`
+}
+
+func (SendDocument) Method() string { return "sendDocument" }
+
+func ExampleClient_Upload() {
+	srv := fakeServer(`{"ok":true,"result":{"message_id":1,"text":""}}`)
+	defer srv.Close()
+	client := lithium.New("TOKEN", lithium.WithBaseURL(srv.URL))
+
+	msg, err := client.Upload[Message](context.Background(),
+		SendDocument{ChatID: 1, Caption: "report"},
+		lithium.File{Field: "document", Name: "report.txt", Reader: strings.NewReader("hello")},
+	).Value()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(msg.MessageID)
+	// Output: 1
 }
 
 func ExampleClient_Call() {

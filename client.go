@@ -69,8 +69,8 @@ func (c *Client) Call(ctx context.Context, req *Request) result.Result[*Response
 }
 
 // CallRaw sends a pre-encoded request body as is and returns the raw result
-// as a [result.Result]. It is the way to send bodies other than JSON,
-// e.g. multipart/form-data with files.
+// as a [result.Result]. It is the way to send bodies other than JSON that
+// [Client.Upload] does not cover.
 //
 // The request must be non-nil and have a non-empty method and content type.
 // If the Bot API responds with ok=false, the result holds an [*Error].
