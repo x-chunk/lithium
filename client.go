@@ -1,8 +1,10 @@
 package lithium
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"mime/multipart"
 	"net/http"
 
 	"go.xchunk.org/anvil/v2/result"
@@ -118,6 +120,30 @@ func (c *Client) Send[Resp any](ctx context.Context, req Method) result.Result[R
 		return result.Err[Resp](errors.New("request must not be empty"))
 	}
 	return c.Call(ctx, NewRequest(req.Method(), req)).AndThen(decode[Resp])
+}
+
+// Upload is like [Client.Send], but sends req as multipart/form-data along with files,
+// as required by methods that upload files, e.g. sendPhoto or sendDocument.
+//
+//	msg, err := client.Upload[Message](ctx, SendPhoto{ChatID: 1},
+//		lithium.File{Field: "photo", Name: "cat.jpg", Reader: f},
+//	).Value()
+//
+// Fields of req are encoded through its json tags: strings are sent as is, nulls
+// are skipped and other values are sent as JSON. A file must not reuse the name of
+// a field set by req. The whole body is built in memory before sending; use
+// [Client.UploadStream] for large files.
+func (c *Client) Upload[Resp any](ctx context.Context, req Method, files ...File) result.Result[Resp] {
+	f, err := newForm(req, files)
+	if err != nil {
+		return result.Err[Resp](err)
+	}
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	if err := f.write(mw); err != nil {
+		return result.Err[Resp](err)
+	}
+	return c.CallRaw(ctx, NewRawRequest(f.method, mw.FormDataContentType(), body.Bytes())).AndThen(decode[Resp])
 }
 
 // decode unmarshals the result of r into a new T.

@@ -2,12 +2,16 @@ package lithium
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
+	"net/http"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 type testSendPhoto struct {
@@ -48,6 +52,12 @@ func readForm(t *testing.T, contentType string, body io.Reader) []testPart {
 		}
 		parts = append(parts, testPart{p.FormName(), p.FileName(), string(value)})
 	}
+}
+
+// readRequestForm decodes the multipart body of r.
+func readRequestForm(t *testing.T, r *http.Request) []testPart {
+	t.Helper()
+	return readForm(t, r.Header.Get("Content-Type"), r.Body)
 }
 
 func TestFormEncodesFields(t *testing.T) {
@@ -128,4 +138,78 @@ func (m testMethod) Method() string { return m.method }
 
 func (m testMethod) MarshalJSON() ([]byte, error) {
 	return json.Marshal(m.payload)
+}
+
+func TestUpload(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/botTOKEN/sendPhoto" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		if r.ContentLength <= 0 {
+			t.Errorf("content length = %d, want a buffered body", r.ContentLength)
+		}
+		got := readRequestForm(t, r)
+		want := []testPart{
+			{name: "chat_id", value: "1"},
+			{name: "disable_notification", value: "true"},
+			{name: "photo", fileName: "cat.jpg", value: "JPEG"},
+		}
+		if len(got) != len(want) {
+			t.Fatalf("parts = %+v, want %+v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("part %d = %+v, want %+v", i, got[i], want[i])
+			}
+		}
+		io.WriteString(w, `{"ok":true,"result":{"message_id":7}}`)
+	})
+
+	msg, err := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1, Silent: true},
+		File{Field: "photo", Name: "cat.jpg", Reader: strings.NewReader("JPEG")},
+	).Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.MessageID != 7 {
+		t.Errorf("msg = %+v", msg)
+	}
+}
+
+func TestUploadAPIError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"ok":false,"error_code":400,"description":"Bad Request: wrong file"}`)
+	})
+
+	err := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+		File{Field: "photo", Reader: strings.NewReader("x")},
+	).Error()
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Code != 400 {
+		t.Errorf("err = %v, want *Error with code 400", err)
+	}
+}
+
+func TestUploadInvalidRequest(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent")
+	})
+
+	if res := c.Upload[testMessage](context.Background(), nil); res.IsOk() {
+		t.Fatalf("want error, got %v", res)
+	}
+}
+
+func TestUploadFileReadError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request must not be sent")
+	})
+
+	errRead := errors.New("read failed")
+	res := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+		File{Field: "photo", Reader: iotest.ErrReader(errRead)},
+	)
+	if !errors.Is(res.Error(), errRead) {
+		t.Fatalf("err = %v, want %v", res.Error(), errRead)
+	}
 }
