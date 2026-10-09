@@ -57,6 +57,49 @@ func TestDoSendsPost(t *testing.T) {
 	}
 }
 
+func TestDoReaderStreamsBody(t *testing.T) {
+	tr := newTestTransport(t, func(w http.ResponseWriter, r *http.Request) {
+		if ct := r.Header.Get("Content-Type"); ct != "text/plain" {
+			t.Errorf("content type = %q", ct)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != "streamed" {
+			t.Errorf("body = %s", body)
+		}
+		io.WriteString(w, `{"ok":true,"result":1}`)
+	})
+
+	pr, pw := io.Pipe()
+	go func() {
+		io.WriteString(pw, "stream")
+		io.WriteString(pw, "ed")
+		pw.Close()
+	}()
+
+	env, err := tr.DoReader(context.Background(), "m", "text/plain", pr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.Ok || string(env.Result) != "1" {
+		t.Errorf("env = %+v", env)
+	}
+}
+
+func TestDoReaderBodyError(t *testing.T) {
+	tr := newTestTransport(t, func(w http.ResponseWriter, r *http.Request) {
+		io.ReadAll(r.Body)
+		io.WriteString(w, `{"ok":true,"result":1}`)
+	})
+
+	errBody := errors.New("body failed")
+	pr, pw := io.Pipe()
+	pw.CloseWithError(errBody)
+
+	if _, err := tr.DoReader(context.Background(), "m", "text/plain", pr); !errors.Is(err, errBody) {
+		t.Fatalf("err = %v, want %v", err, errBody)
+	}
+}
+
 func TestDoReturnsNotOkEnvelope(t *testing.T) {
 	tr := newTestTransport(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)

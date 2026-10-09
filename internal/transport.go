@@ -49,7 +49,13 @@ type Parameters struct {
 // A non-ok envelope is returned as is, without an error: interpreting it is up to the caller.
 // Network errors never contain the request URL, so the token does not leak into them.
 func (t *Transport) Do(ctx context.Context, method, contentType string, body []byte) (*Envelope, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url(method), bytes.NewReader(body))
+	return t.DoReader(ctx, method, contentType, bytes.NewReader(body))
+}
+
+// DoReader is like Do, but streams the body from r instead of taking it as a whole.
+// Unless r is a [bytes.Reader] or similar, the request is sent with chunked encoding.
+func (t *Transport) DoReader(ctx context.Context, method, contentType string, r io.Reader) (*Envelope, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url(method), r)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
