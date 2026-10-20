@@ -44,7 +44,7 @@ func ExampleClient_Send() {
 	defer srv.Close()
 	client := lithium.New("TOKEN", lithium.WithBaseURL(srv.URL))
 
-	msg, err := client.Send[Message](context.Background(), SendMessage{ChatID: 1, Text: "hi"}).Value()
+	msg, err := client.Send[Message](context.Background(), SendMessage{ChatID: 1, Text: "hi"})
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +60,7 @@ func ExampleClient_Do() {
 	ok, err := client.Do[bool](context.Background(), "deleteMessage", map[string]any{
 		"chat_id":    1,
 		"message_id": 1,
-	}).Value()
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -83,7 +83,7 @@ func ExampleClient_Upload() {
 	msg, err := client.Upload[Message](context.Background(),
 		SendDocument{ChatID: 1, Caption: "report"},
 		lithium.File{Field: "document", Name: "report.txt", Reader: strings.NewReader("hello")},
-	).Value()
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +96,7 @@ func ExampleClient_Call() {
 	defer srv.Close()
 	client := lithium.New("TOKEN", lithium.WithBaseURL(srv.URL))
 
-	resp, err := client.Call(context.Background(), lithium.NewRequest("getMe", struct{}{})).Value()
+	resp, err := client.Call(context.Background(), lithium.NewRequest("getMe", struct{}{}))
 	if err != nil {
 		panic(err)
 	}
@@ -109,7 +109,7 @@ func ExampleError() {
 	defer srv.Close()
 	client := lithium.New("TOKEN", lithium.WithBaseURL(srv.URL))
 
-	err := client.Send[Message](context.Background(), SendMessage{ChatID: 1, Text: "hi"}).Error()
+	_, err := client.Send[Message](context.Background(), SendMessage{ChatID: 1, Text: "hi"})
 
 	var apiErr *lithium.Error
 	if errors.As(err, &apiErr) {

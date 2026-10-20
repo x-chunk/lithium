@@ -168,7 +168,7 @@ func TestUpload(t *testing.T) {
 
 	msg, err := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1, Silent: true},
 		File{Field: "photo", Name: "cat.jpg", Reader: strings.NewReader("JPEG")},
-	).Value()
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,9 +182,9 @@ func TestUploadAPIError(t *testing.T) {
 		io.WriteString(w, `{"ok":false,"error_code":400,"description":"Bad Request: wrong file"}`)
 	})
 
-	err := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+	_, err := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1},
 		File{Field: "photo", Reader: strings.NewReader("x")},
-	).Error()
+	)
 	var apiErr *Error
 	if !errors.As(err, &apiErr) || apiErr.Code != 400 {
 		t.Errorf("err = %v, want *Error with code 400", err)
@@ -196,8 +196,8 @@ func TestUploadInvalidRequest(t *testing.T) {
 		t.Error("request must not be sent")
 	})
 
-	if res := c.Upload[testMessage](context.Background(), nil); res.IsOk() {
-		t.Fatalf("want error, got %v", res)
+	if _, err := c.Upload[testMessage](context.Background(), nil); err == nil {
+		t.Fatal("want error")
 	}
 }
 
@@ -207,11 +207,11 @@ func TestUploadFileReadError(t *testing.T) {
 	})
 
 	errRead := errors.New("read failed")
-	res := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+	_, err := c.Upload[testMessage](context.Background(), testSendPhoto{ChatID: 1},
 		File{Field: "photo", Reader: iotest.ErrReader(errRead)},
 	)
-	if !errors.Is(res.Error(), errRead) {
-		t.Fatalf("err = %v, want %v", res.Error(), errRead)
+	if !errors.Is(err, errRead) {
+		t.Fatalf("err = %v, want %v", err, errRead)
 	}
 }
 
@@ -243,7 +243,7 @@ func TestUploadStream(t *testing.T) {
 
 	msg, err := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1, Caption: "hi"},
 		File{Field: "photo", Name: "cat.jpg", Reader: strings.NewReader("JPEG")},
-	).Value()
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,11 +257,11 @@ func TestUploadStreamInvalidRequest(t *testing.T) {
 		t.Error("request must not be sent")
 	})
 
-	res := c.UploadStream[testMessage](context.Background(), testSendPhoto{},
+	_, err := c.UploadStream[testMessage](context.Background(), testSendPhoto{},
 		File{Field: "photo"},
 	)
-	if res.IsOk() {
-		t.Fatalf("want error, got %v", res)
+	if err == nil {
+		t.Fatal("want error")
 	}
 }
 
@@ -272,11 +272,11 @@ func TestUploadStreamFileReadError(t *testing.T) {
 	})
 
 	errRead := errors.New("read failed")
-	res := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+	_, err := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1},
 		File{Field: "photo", Reader: iotest.ErrReader(errRead)},
 	)
-	if !errors.Is(res.Error(), errRead) {
-		t.Fatalf("err = %v, want %v", res.Error(), errRead)
+	if !errors.Is(err, errRead) {
+		t.Fatalf("err = %v, want %v", err, errRead)
 	}
 }
 
@@ -301,12 +301,12 @@ func TestUploadStreamStopsReadingOnEarlyResponse(t *testing.T) {
 	})
 
 	file := &endlessReader{t: t}
-	res := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1},
+	_, err := c.UploadStream[testMessage](context.Background(), testSendPhoto{ChatID: 1},
 		File{Field: "photo", Reader: file},
 	)
 	file.done.Store(true)
-	if res.IsOk() {
-		t.Fatalf("want error, got %v", res)
+	if err == nil {
+		t.Fatal("want error")
 	}
 }
 
@@ -318,11 +318,11 @@ func TestUploadStreamContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	file := &endlessReader{t: t}
-	res := c.UploadStream[testMessage](ctx, testSendPhoto{ChatID: 1},
+	_, err := c.UploadStream[testMessage](ctx, testSendPhoto{ChatID: 1},
 		File{Field: "photo", Reader: file},
 	)
 	file.done.Store(true)
-	if !errors.Is(res.Error(), context.Canceled) {
-		t.Fatalf("err = %v, want context.Canceled", res.Error())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }

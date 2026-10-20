@@ -32,7 +32,7 @@ func TestCallSuccess(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":{"message_id":42}}`)
 	})
 
-	resp, err := c.Call(context.Background(), NewRequest("sendMessage", map[string]any{"chat_id": 1, "text": "hi"})).Value()
+	resp, err := c.Call(context.Background(), NewRequest("sendMessage", map[string]any{"chat_id": 1, "text": "hi"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestCallAPIError(t *testing.T) {
 		io.WriteString(w, `{"ok":false,"error_code":429,"description":"Too Many Requests","parameters":{"retry_after":5}}`)
 	})
 
-	err := c.Call(context.Background(), NewRequest("getMe", struct{}{})).Error()
+	_, err := c.Call(context.Background(), NewRequest("getMe", struct{}{}))
 	var apiErr *Error
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("err = %v, want *Error", err)
@@ -75,7 +75,7 @@ func TestCallRaw(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":true}`)
 	})
 
-	resp, err := c.CallRaw(context.Background(), NewRawRequest("x", "text/plain", []byte("raw"))).Value()
+	resp, err := c.CallRaw(context.Background(), NewRawRequest("x", "text/plain", []byte("raw")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestCallRaw(t *testing.T) {
 
 func TestTransportErrorHidesToken(t *testing.T) {
 	c := New("SECRET", WithBaseURL("http://127.0.0.1:1"))
-	err := c.Call(context.Background(), NewRequest("getMe", struct{}{})).Error()
+	_, err := c.Call(context.Background(), NewRequest("getMe", struct{}{}))
 	if err == nil {
 		t.Fatal("want error")
 	}
@@ -107,7 +107,7 @@ func TestCallValidation(t *testing.T) {
 		"nil payload":  NewRequest("getMe", nil),
 	}
 	for name, req := range tests {
-		if res := c.Call(ctx, req); res.IsOk() {
+		if _, err := c.Call(ctx, req); err == nil {
 			t.Errorf("%s: want error", name)
 		}
 	}
@@ -125,7 +125,7 @@ func TestCallRawValidation(t *testing.T) {
 		"empty content type": NewRawRequest("getMe", "", nil),
 	}
 	for name, req := range tests {
-		if res := c.CallRaw(ctx, req); res.IsOk() {
+		if _, err := c.CallRaw(ctx, req); err == nil {
 			t.Errorf("%s: want error", name)
 		}
 	}
@@ -144,7 +144,7 @@ func TestDoDecodesResult(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":{"message_id":7,"text":"hi"}}`)
 	})
 
-	msg, err := c.Do[testMessage](context.Background(), "sendMessage", map[string]any{"text": "hi"}).Value()
+	msg, err := c.Do[testMessage](context.Background(), "sendMessage", map[string]any{"text": "hi"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestDoScalarResult(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":true}`)
 	})
 
-	ok, err := c.Do[bool](context.Background(), "deleteMessage", struct{}{}).Value()
+	ok, err := c.Do[bool](context.Background(), "deleteMessage", struct{}{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,13 +172,13 @@ func TestDoAPIError(t *testing.T) {
 		io.WriteString(w, `{"ok":false,"error_code":403,"description":"Forbidden"}`)
 	})
 
-	res := c.Do[testMessage](context.Background(), "sendMessage", struct{}{})
-	if res.IsOk() {
+	_, err := c.Do[testMessage](context.Background(), "sendMessage", struct{}{})
+	if err == nil {
 		t.Fatal("want error")
 	}
 	var apiErr *Error
-	if !errors.As(res.Error(), &apiErr) || apiErr.Code != 403 {
-		t.Errorf("err = %v, want *Error with code 403", res.Error())
+	if !errors.As(err, &apiErr) || apiErr.Code != 403 {
+		t.Errorf("err = %v, want *Error with code 403", err)
 	}
 }
 
@@ -187,8 +187,8 @@ func TestDoDecodeError(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":"not an object"}`)
 	})
 
-	if res := c.Do[testMessage](context.Background(), "sendMessage", struct{}{}); res.IsOk() {
-		t.Fatalf("want decode error, got %v", res)
+	if _, err := c.Do[testMessage](context.Background(), "sendMessage", struct{}{}); err == nil {
+		t.Fatal("want decode error")
 	}
 }
 
@@ -215,7 +215,7 @@ func TestSendUsesRequestAsPayload(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":{"message_id":7,"text":"hi"}}`)
 	})
 
-	msg, err := c.Send[testMessage](context.Background(), testSendMessage{ChatID: 1, Text: "hi"}).Value()
+	msg, err := c.Send[testMessage](context.Background(), testSendMessage{ChatID: 1, Text: "hi"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestSendPointerReceiverEmptyStruct(t *testing.T) {
 		io.WriteString(w, `{"ok":true,"result":{"id":1}}`)
 	})
 
-	me, err := c.Send[map[string]int](context.Background(), &testGetMe{}).Value()
+	me, err := c.Send[map[string]int](context.Background(), &testGetMe{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestSendNilRequest(t *testing.T) {
 		t.Error("request must not be sent")
 	})
 
-	if res := c.Send[testMessage](context.Background(), nil); res.IsOk() {
-		t.Fatalf("want error, got %v", res)
+	if _, err := c.Send[testMessage](context.Background(), nil); err == nil {
+		t.Fatal("want error")
 	}
 }
